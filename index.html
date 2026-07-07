@@ -74,6 +74,11 @@
   .goalbar { background:var(--accent); height:100%; width:0; border-radius:999px; transition:width .4s; }
   .goal-lbl { display:flex; justify-content:space-between; font-size:.82rem;
               color:var(--ink-soft); font-weight:500; }
+  .time-row { display:flex; gap:.4rem; margin-top:.7rem; align-items:center; }
+  .time-lbl { font-size:.72rem; color:var(--ink-soft); font-weight:500; margin-right:.2rem; }
+  .time-btn { flex:1; padding:.32rem 0; font-size:.8rem; font-weight:600; color:var(--ink-soft);
+    background:transparent; border:1px solid var(--line); border-radius:999px; }
+  .time-btn.active { background:var(--accent); border-color:var(--accent); color:#fff; }
 
   /* quiz */
   .q-count { font-size:.8rem; color:var(--ink-soft); font-weight:500; }
@@ -145,6 +150,7 @@
   <div class="card">
     <div class="goal-lbl"><span>Obiettivo di oggi</span><span id="goal-num">0 / 40</span></div>
     <div class="goalwrap"><div class="goalbar" id="goalbar"></div></div>
+    <div class="time-row" id="time-row"></div>
   </div>
 
   <button class="btn" id="btn-train" onclick="startTraining()">Allenamento</button>
@@ -226,7 +232,8 @@
 <script src="ws-sync.js"></script>
 <script>
 /* ═════════ Impostazioni ═════════ */
-const GOAL = 40;                       // risposte di allenamento al giorno (~15 min con lo smistamento)
+const TIME_CHOICES = [5, 10, 15, 20, 30];   // minuti al giorno, scelti da Daniela
+const REPS_PER_MIN = 2.7;                   // ritmo osservato: ~22 secondi a risposta
 const SESSION_LEN = 10;
 const INTERVALS = [0, 1, 2, 4, 8, 16]; // giorni per scatola (Leitner)
 const MASTERED_BOX = 4;
@@ -243,6 +250,16 @@ function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch 
                       window.WSSync?.markDirty(k); }
 let srs  = load('ws_srs', {});   // { key: {st:'known'|'learn', b, due, r, w} }
 let days = load('ws_days', {});  // { 'YYYY-MM-DD': {a, c, sw} }
+let prefs = load('ws_prefs', { minutes: 15 });   // scelta locale del dispositivo
+
+/* L'obiettivo del giorno in "risposte": i minuti scelti tradotti in ripetizioni.
+   Anche lo smistamento conta: 4 carte vagliate ≈ 1 risposta di allenamento. */
+const goalAnswers = () => Math.max(5, Math.round(prefs.minutes * REPS_PER_MIN / 5) * 5);
+function doneToday() {
+  const t = days[today()] || {};
+  return (t.a || 0) + Math.floor((t.sw || 0) / 4);
+}
+function setMinutes(m) { prefs.minutes = m; save('ws_prefs', prefs); goHome(); }
 const persist = () => { save('ws_srs', srs); save('ws_days', days); };
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -273,12 +290,16 @@ let mode = 'home';
 
 function goHome() {
   mode = 'home';
-  const t = days[today()] || { a: 0 };
   document.getElementById('st-streak').textContent = streak();
   document.getElementById('st-learn').textContent = learning().length;
   document.getElementById('st-mastered').textContent = mastered().length;
-  document.getElementById('goal-num').textContent = `${Math.min(t.a, GOAL)} / ${GOAL}`;
-  document.getElementById('goalbar').style.width = Math.min(100, t.a / GOAL * 100) + '%';
+  const G = goalAnswers(), eff = doneToday();
+  document.getElementById('goal-num').textContent = `${Math.min(eff, G)} / ${G}`;
+  document.getElementById('goalbar').style.width = Math.min(100, eff / G * 100) + '%';
+  document.getElementById('time-row').innerHTML =
+    `<span class="time-lbl">Tempo di oggi</span>` + TIME_CHOICES.map(m =>
+      `<button class="time-btn ${m === prefs.minutes ? 'active' : ''}"
+        onclick="setMinutes(${m})">${m}′</button>`).join('');
 
   const due = dueNow().length, fresh = untriaged().length;
   const bT = document.getElementById('btn-train'), bS = document.getElementById('btn-sweep');
@@ -287,11 +308,11 @@ function goHome() {
   bS.textContent = fresh ? `Smistamento — ${fresh.toLocaleString('it')} parole da vagliare` : 'Smistamento completato';
   bS.disabled = fresh === 0;
 
-  const line = t.a >= GOAL
+  const line = eff >= G
     ? 'Obiettivo raggiunto. Il resto lo fa il sonno.'
     : learning().length === 0
       ? 'Si comincia dallo smistamento: decidi quali parole conosci già e quali vuoi imparare.'
-      : 'Un po’ ogni giorno. Quindici minuti bastano.';
+      : 'Un po’ ogni giorno, anche in più momenti. Il conteggio si somma da solo.';
   document.getElementById('home-line').textContent = line;
   show('s-home');
 }
@@ -454,14 +475,15 @@ function nextQuestion() {
 
 function showResult() {
   mode = 'result';
-  const t = days[today()] || { a: 0 };
   const pct = Math.round(sCorrect / session.length * 100);
   document.getElementById('res-line').textContent =
     `${sCorrect} su ${session.length} corrette.`;
-  const goalDone = t.a >= GOAL;
+  const G = goalAnswers(), eff = doneToday();
+  const goalDone = eff >= G;
   document.getElementById('res-detail').innerHTML =
-    `<p class="sub">Oggi: ${t.a} risposte · obiettivo ${GOAL}.` +
-    (goalDone ? ' Obiettivo raggiunto — per oggi può bastare.' : '') + `</p>`;
+    `<p class="sub">Oggi: ${Math.min(eff, G)} su ${G} (obiettivo di ${prefs.minutes} minuti).` +
+    (goalDone ? ' Obiettivo raggiunto — per oggi può bastare.'
+              : ' Puoi continuare ora o riprendere più tardi: il conteggio resta.') + `</p>`;
   document.getElementById('res-again').style.display = goalDone ? 'none' : 'block';
   document.getElementById('res-title').textContent =
     pct >= 80 ? 'Buon giro' : 'Sessione completata';
