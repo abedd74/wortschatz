@@ -19,8 +19,8 @@
 
   // ── Progetto Firebase (da compilare dopo la creazione del progetto) ──
   const CONFIG = {
-    projectId: 'DA-COMPILARE',
-    apiKey:    'DA-COMPILARE',
+    projectId: 'wortschatz-daniela',
+    apiKey:    'AIzaSyAskanLnAfXhcg01l2dR0P4AYVowVipzTU',
   };
 
   const CODE_KEY = 'ws_sync_code';
