@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#f6f4ef">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Wortschatz">
+<title>Wortschatz</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #f6f4ef;
+    --card: #fffdf9;
+    --ink: #21323f;
+    --ink-soft: #5c6b74;
+    --line: #e2ddd2;
+    --accent: #2c4a63;
+    --accent-soft: #eef1f2;
+    --good: #6a7f43;  --good-bg: #f0f3e6;
+    --bad:  #b0603a;  --bad-bg:  #f9ece5;
+    --warn: #8a6d3b;  --warn-bg: #f7f1e2;
+    --c-der: #2e6e8e; --c-die: #a04a4a; --c-das: #5a7d4a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--paper); color: var(--ink);
+    font-family: 'Inter', system-ui, sans-serif; line-height: 1.5;
+    padding: 1.6rem 1rem 4rem;
+  }
+  .wrap { max-width: 640px; margin: 0 auto; }
+  .screen { display: none; }
+  .screen.active { display: block; }
+
+  .eyebrow { font-size:.7rem; letter-spacing:.16em; text-transform:uppercase;
+             color:var(--ink-soft); font-weight:600; }
+  h1 { font-family:'Fraunces',Georgia,serif; font-weight:600; font-size:1.8rem;
+       margin:.2rem 0 .4rem; }
+  h2 { font-family:'Fraunces',Georgia,serif; font-weight:600; font-size:1.1rem;
+       margin:0 0 .6rem; }
+  .sub { color:var(--ink-soft); font-size:.92rem; }
+
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px;
+          padding:1.1rem 1.2rem; margin:.8rem 0; }
+
+  button { font-family:inherit; cursor:pointer; }
+  .btn {
+    display:block; width:100%; padding:.85rem 1rem; margin:.55rem 0;
+    font-size:1rem; font-weight:600; color:#fff;
+    background:var(--accent); border:1px solid var(--accent); border-radius:8px;
+    transition:opacity .12s;
+  }
+  .btn:hover { opacity:.92; }
+  .btn.secondary { background:transparent; color:var(--accent); border-color:var(--line); }
+  .btn.secondary:hover { border-color:var(--accent); opacity:1; }
+  .btn:disabled { background:#d8d4ca; border-color:#d8d4ca; color:#918d84; cursor:default; }
+
+  .topbar { display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; }
+  .quit { background:none; border:none; color:var(--ink-soft); font-size:.9rem;
+          font-weight:500; padding:.3rem .5rem; }
+  .quit:hover { color:var(--ink); }
+
+  /* home stats */
+  .stat-row { display:flex; gap:.6rem; margin:.9rem 0; }
+  .stat { flex:1; background:var(--card); border:1px solid var(--line); border-radius:10px;
+          padding:.7rem .5rem; text-align:center; }
+  .stat b { display:block; font-family:'Fraunces',serif; font-size:1.45rem; font-weight:600;
+            color:var(--accent); }
+  .stat span { font-size:.72rem; color:var(--ink-soft); font-weight:500; }
+  .goalwrap { background:var(--line); border-radius:999px; height:10px; overflow:hidden; margin-top:.5rem; }
+  .goalbar { background:var(--accent); height:100%; width:0; border-radius:999px; transition:width .4s; }
+  .goal-lbl { display:flex; justify-content:space-between; font-size:.82rem;
+              color:var(--ink-soft); font-weight:500; }
+
+  /* quiz */
+  .q-count { font-size:.8rem; color:var(--ink-soft); font-weight:500; }
+  .q-word { font-family:'Fraunces',Georgia,serif; font-size:1.9rem; font-weight:600;
+            text-align:center; margin:.9rem 0 .2rem; line-height:1.25; }
+  .q-word .art-der { color:var(--c-der); } .q-word .art-die { color:var(--c-die); }
+  .q-word .art-das { color:var(--c-das); }
+  .q-meta { text-align:center; color:var(--ink-soft); font-size:.85rem; min-height:1.2em; }
+  .q-it { text-align:center; font-size:1.08rem; color:var(--ink); margin:.4rem 0 .2rem; }
+
+  .answers { display:grid; gap:.5rem; margin-top:1rem; }
+  .ans {
+    padding:.7rem .9rem; font-size:.95rem; text-align:left;
+    background:var(--card); color:var(--ink);
+    border:1px solid var(--line); border-radius:8px;
+  }
+  .ans:hover { border-color:var(--accent); }
+  .ans .k { display:inline-block; width:1.3em; color:var(--ink-soft); font-size:.8rem; }
+  .ans.correct { background:var(--good-bg); border-color:var(--good); }
+  .ans.wrong   { background:var(--bad-bg);  border-color:var(--bad); }
+  .ans.gender { text-align:center; font-weight:600; font-size:1.05rem; }
+  .answers.row3 { grid-template-columns:1fr 1fr 1fr; }
+  .answers.row2 { grid-template-columns:1fr 1fr; }
+
+  .sweep-btns { display:grid; grid-template-columns:1fr 1fr 1fr; gap:.5rem; margin-top:1.1rem; }
+  .sweep-btns .ans { text-align:center; font-weight:600; }
+  .sweep-btns .ans small { display:block; font-weight:400; font-size:.7rem; color:var(--ink-soft); }
+
+  .feedback { margin-top:.9rem; padding:.75rem .9rem; border-radius:8px; font-size:.9rem;
+              display:none; border:1px solid transparent; }
+  .feedback.show { display:block; }
+  .feedback.good { background:var(--good-bg); border-color:var(--good); }
+  .feedback.bad  { background:var(--bad-bg);  border-color:var(--bad); }
+  .feedback .sol { font-weight:600; }
+  .feedback .ex { color:var(--ink-soft); font-size:.85rem; margin-top:.3rem; font-style:italic; }
+  .feedback .warn { color:var(--warn); font-size:.83rem; margin-top:.3rem; }
+
+  .next { display:none; margin-top:.8rem; }
+  .next.show { display:block; }
+
+  /* progress */
+  .theme-row { display:flex; align-items:center; gap:.6rem; margin:.4rem 0; font-size:.85rem; }
+  .theme-row .lbl { width:170px; color:var(--ink-soft); }
+  .theme-row .barw { flex:1; background:var(--line); border-radius:999px; height:9px; overflow:hidden; }
+  .theme-row .bar { height:100%; background:var(--accent); border-radius:999px; }
+  .theme-row .num { width:70px; text-align:right; color:var(--ink-soft); font-size:.78rem; }
+
+  .kbd-hint { text-align:center; color:#b5b0a6; font-size:.72rem; margin-top:.9rem; }
+  @media (hover: none) { .kbd-hint { display:none; } }
+  .sync-status { font-size:.8rem; color:var(--ink-soft); margin-bottom:.6rem; }
+  footer { margin-top:2.2rem; font-size:.75rem; color:var(--ink-soft); text-align:center; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<!-- ══════════ HOME ══════════ -->
+<div class="screen active" id="s-home">
+  <div class="eyebrow">Goethe-Zertifikat · Wortschatz B1</div>
+  <h1>Ciao, Daniela</h1>
+  <p class="sub" id="home-line"></p>
+
+  <div class="stat-row">
+    <div class="stat"><b id="st-streak">0</b><span>giorni di fila</span></div>
+    <div class="stat"><b id="st-learn">0</b><span>in apprendimento</span></div>
+    <div class="stat"><b id="st-mastered">0</b><span>consolidate</span></div>
+  </div>
+
+  <div class="card">
+    <div class="goal-lbl"><span>Obiettivo di oggi</span><span id="goal-num">0 / 40</span></div>
+    <div class="goalwrap"><div class="goalbar" id="goalbar"></div></div>
+  </div>
+
+  <button class="btn" id="btn-train" onclick="startTraining()">Allenamento</button>
+  <button class="btn secondary" id="btn-sweep" onclick="startSweep()">Smistamento</button>
+  <button class="btn secondary" onclick="showProgress()">Progressi</button>
+</div>
+
+<!-- ══════════ SMISTAMENTO ══════════ -->
+<div class="screen" id="s-sweep">
+  <div class="topbar">
+    <button class="quit" onclick="goHome()">← Fine per ora</button>
+    <span class="q-count" id="sweep-count"></span>
+  </div>
+  <div class="card">
+    <div class="q-word" id="sw-word"></div>
+    <div class="q-meta" id="sw-meta"></div>
+    <div class="q-it" id="sw-it"></div>
+    <div class="sweep-btns">
+      <button class="ans" onclick="sweepAnswer('known')">La conosco<small>1</small></button>
+      <button class="ans" onclick="sweepAnswer('unsure')">Non sono sicura<small>2</small></button>
+      <button class="ans" onclick="sweepAnswer('learn')">Non la conosco<small>3</small></button>
+    </div>
+  </div>
+  <p class="kbd-hint">Tasti 1 · 2 · 3 — decidi d'istinto, senza pensarci troppo</p>
+</div>
+
+<!-- ══════════ ALLENAMENTO ══════════ -->
+<div class="screen" id="s-train">
+  <div class="topbar">
+    <button class="quit" onclick="goHome()">← Fine per ora</button>
+    <span class="q-count" id="tr-count"></span>
+  </div>
+  <div class="card">
+    <div class="q-word" id="tr-word"></div>
+    <div class="q-meta" id="tr-meta"></div>
+    <div class="answers" id="tr-answers"></div>
+    <div class="feedback" id="tr-feedback"></div>
+    <button class="btn next" id="tr-next" onclick="nextQuestion()">Avanti</button>
+  </div>
+  <p class="kbd-hint">Tasti 1–4 per rispondere · Invio per avanzare</p>
+</div>
+
+<!-- ══════════ FINE SESSIONE ══════════ -->
+<div class="screen" id="s-result">
+  <h1 id="res-title">Sessione completata</h1>
+  <p class="sub" id="res-line"></p>
+  <div class="card" id="res-detail"></div>
+  <button class="btn" id="res-again" onclick="startTraining()">Un altro giro</button>
+  <button class="btn secondary" onclick="goHome()">Basta per oggi</button>
+</div>
+
+<!-- ══════════ PROGRESSI ══════════ -->
+<div class="screen" id="s-progress">
+  <div class="topbar">
+    <button class="quit" onclick="goHome()">← Indietro</button>
+  </div>
+  <h1>Progressi</h1>
+  <div class="card" id="pg-summary"></div>
+  <div class="card">
+    <h2>Copertura per tema</h2>
+    <div id="pg-themes"></div>
+  </div>
+  <div class="card">
+    <h2>Sincronizzazione e backup</h2>
+    <div class="sync-status" id="sync-status"></div>
+    <p class="sub">I dati vivono in questo browser. Un backup ogni tanto non fa male.</p>
+    <div style="display:flex; gap:.5rem;">
+      <button class="btn secondary" style="margin:0;" onclick="exportBackup()">Salva backup</button>
+      <button class="btn secondary" style="margin:0;" onclick="document.getElementById('imp').click()">Carica backup</button>
+      <input type="file" id="imp" accept=".json" style="display:none;" onchange="importBackup(this)">
+    </div>
+  </div>
+</div>
+
+<footer>Wortschatz · lista ufficiale Goethe-Zertifikat B1</footer>
+</div>
+
+<script src="wortschatz_data.js"></script>
+<script src="ws-sync.js"></script>
+<script>
+/* ═════════ Impostazioni ═════════ */
+const GOAL = 40;                       // risposte di allenamento al giorno (~15 min con lo smistamento)
+const SESSION_LEN = 10;
+const INTERVALS = [0, 1, 2, 4, 8, 16]; // giorni per scatola (Leitner)
+const MASTERED_BOX = 4;
+
+/* Parole regionali A/CH escluse (la famiglia è in Renania-Palatinato) */
+const WORDS = WS_DATA.filter(e => !e.region || e.region.includes('D'));
+const keyOf = e => [e.de, e.g || e.type, e.theme || ''].join('|');
+const byKey = {};
+WORDS.forEach(e => byKey[keyOf(e)] = e);
+
+/* ═════════ Stato ═════════ */
+function load(k, fb) { try { const r = localStorage.getItem(k); return r ? JSON.parse(r) : fb; } catch { return fb; } }
+function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {}
+                      window.WSSync?.markDirty(k); }
+let srs  = load('ws_srs', {});   // { key: {st:'known'|'learn', b, due, r, w} }
+let days = load('ws_days', {});  // { 'YYYY-MM-DD': {a, c, sw} }
+const persist = () => { save('ws_srs', srs); save('ws_days', days); };
+
+const today = () => new Date().toISOString().slice(0, 10);
+function addDays(ds, n) { const d = new Date(ds + 'T12:00:00'); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); }
+function bumpDay(field) { const t = today(); days[t] = days[t] || { a: 0, c: 0, sw: 0 }; days[t][field]++; }
+
+function streak() {
+  let n = 0, d = today();
+  const active = ds => days[ds] && (days[ds].a > 0 || days[ds].sw > 0);
+  if (!active(d)) d = addDays(d, -1);
+  while (active(d)) { n++; d = addDays(d, -1); }
+  return n;
+}
+
+const untriaged = () => WORDS.filter(e => !srs[keyOf(e)]);
+const learning  = () => WORDS.filter(e => { const s = srs[keyOf(e)]; return s && s.st === 'learn'; });
+const mastered  = () => learning().filter(e => srs[keyOf(e)].b >= MASTERED_BOX);
+const dueNow    = () => {
+  const t = today();
+  return learning().filter(e => srs[keyOf(e)].b < INTERVALS.length && (srs[keyOf(e)].due || t) <= t)
+    .sort((a, b) => srs[keyOf(a)].b - srs[keyOf(b)].b);
+};
+
+/* ═════════ Navigazione ═════════ */
+function show(id) { document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+                    document.getElementById(id).classList.add('active'); window.scrollTo(0, 0); }
+let mode = 'home';
+
+function goHome() {
+  mode = 'home';
+  const t = days[today()] || { a: 0 };
+  document.getElementById('st-streak').textContent = streak();
+  document.getElementById('st-learn').textContent = learning().length;
+  document.getElementById('st-mastered').textContent = mastered().length;
+  document.getElementById('goal-num').textContent = `${Math.min(t.a, GOAL)} / ${GOAL}`;
+  document.getElementById('goalbar').style.width = Math.min(100, t.a / GOAL * 100) + '%';
+
+  const due = dueNow().length, fresh = untriaged().length;
+  const bT = document.getElementById('btn-train'), bS = document.getElementById('btn-sweep');
+  bT.textContent = due ? `Allenamento — ${due} parole da ripassare` : 'Allenamento';
+  bT.disabled = learning().length === 0;
+  bS.textContent = fresh ? `Smistamento — ${fresh.toLocaleString('it')} parole da vagliare` : 'Smistamento completato';
+  bS.disabled = fresh === 0;
+
+  const line = t.a >= GOAL
+    ? 'Obiettivo raggiunto. Il resto lo fa il sonno.'
+    : learning().length === 0
+      ? 'Si comincia dallo smistamento: decidi quali parole conosci già e quali vuoi imparare.'
+      : 'Un po’ ogni giorno. Quindici minuti bastano.';
+  document.getElementById('home-line').textContent = line;
+  show('s-home');
+}
+
+/* ═════════ Utilità di presentazione ═════════ */
+function wordHtml(e) {
+  if (e.type === 'noun' && e.g) {
+    const cls = { der: 'art-der', die: 'art-die', das: 'art-das' }[e.g] || '';
+    return `<span class="${cls}">${e.g}</span> ${e.de}${e.pl ? ', ' + e.pl : ''}`;
+  }
+  return e.de;
+}
+function metaText(e) {
+  if (e.type === 'verb') return [e.pres, e.praet, (e.aux || '') + ' ' + (e.perfekt || '')].filter(Boolean).join(' · ');
+  return '';
+}
+const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+
+/* ═════════ Smistamento ═════════ */
+let sweepQueue = [], sweepDone = 0;
+
+function startSweep() {
+  mode = 'sweep';
+  sweepQueue = shuffle(untriaged().slice());
+  sweepDone = 0;
+  if (!sweepQueue.length) return goHome();
+  renderSweep();
+  show('s-sweep');
+}
+function renderSweep() {
+  const e = sweepQueue[0];
+  document.getElementById('sw-word').innerHTML = wordHtml(e);
+  document.getElementById('sw-meta').textContent = metaText(e);
+  document.getElementById('sw-it').textContent = e.it;
+  document.getElementById('sweep-count').textContent =
+    `${sweepDone} vagliate ora · ${sweepQueue.length.toLocaleString('it')} rimaste`;
+}
+function sweepAnswer(v) {
+  const e = sweepQueue.shift();
+  const k = keyOf(e), t = today();
+  if (v === 'known')       srs[k] = { st: 'known' };
+  else if (v === 'unsure') srs[k] = { st: 'learn', b: 1, due: t, r: 0, w: 0 };
+  else                     srs[k] = { st: 'learn', b: 0, due: t, r: 0, w: 0 };
+  sweepDone++; bumpDay('sw'); persist();
+  if (!sweepQueue.length) return goHome();
+  renderSweep();
+}
+
+/* ═════════ Allenamento ═════════ */
+let session = [], sIdx = 0, sCorrect = 0, cur = null, step = 0, wrongThisCard = false;
+
+function startTraining() {
+  mode = 'train';
+  let pool = dueNow();
+  if (!pool.length) pool = shuffle(learning().slice()).sort((a, b) => srs[keyOf(a)].b - srs[keyOf(b)].b);
+  if (!pool.length) return goHome();
+  session = pool.slice(0, SESSION_LEN);
+  sIdx = 0; sCorrect = 0;
+  renderQuestion();
+  show('s-train');
+}
+
+function distractors(e, n) {
+  const pool = WORDS.filter(x => x !== e && x.type === e.type && x.it !== e.it);
+  const same = pool.filter(x => x.theme === e.theme);
+  const picks = shuffle(same.slice()).slice(0, n);
+  if (picks.length < n) picks.push(...shuffle(pool.filter(x => !picks.includes(x))).slice(0, n - picks.length));
+  return picks;
+}
+
+function renderQuestion() {
+  cur = session[sIdx]; step = 0; wrongThisCard = false;
+  document.getElementById('tr-count').textContent = `${sIdx + 1} di ${session.length}`;
+  document.getElementById('tr-word').innerHTML =
+    cur.type === 'noun' ? cur.de : wordHtml(cur);   // il genere è parte della domanda, non mostrarlo
+  document.getElementById('tr-meta').textContent = cur.type === 'verb' ? '' : '';
+  document.getElementById('tr-feedback').className = 'feedback';
+  document.getElementById('tr-next').className = 'btn next';
+
+  const opts = shuffle([cur, ...distractors(cur, 3)]);
+  const box = document.getElementById('tr-answers');
+  box.className = 'answers';
+  box.innerHTML = opts.map((o, i) =>
+    `<button class="ans" data-ok="${o === cur}" onclick="answerMeaning(this)">` +
+    `<span class="k">${i + 1}</span>${o.it}</button>`).join('');
+}
+
+function answerMeaning(btn) {
+  if (step !== 0) return;
+  const ok = btn.dataset.ok === 'true';
+  document.querySelectorAll('#tr-answers .ans').forEach(b => {
+    if (b.dataset.ok === 'true') b.classList.add('correct');
+    else if (b === btn) b.classList.add('wrong');
+    b.onclick = null;
+  });
+  if (!ok) wrongThisCard = true;
+  if (cur.type === 'noun' && cur.g) { step = 1; setTimeout(askGender, ok ? 450 : 1100); }
+  else if (cur.type === 'verb' && cur.aux && !cur.aux.includes('/')) { step = 1; setTimeout(askAux, ok ? 450 : 1100); }
+  else finishCard();
+}
+
+function askGender() {
+  const box = document.getElementById('tr-answers');
+  box.className = 'answers row3';
+  document.getElementById('tr-word').innerHTML = `___ ${cur.de}`;
+  box.innerHTML = ['der', 'die', 'das'].map((a, i) =>
+    `<button class="ans gender" style="color:var(--c-${a})" data-ok="${a === cur.g}"` +
+    ` onclick="answerStep(this)"><span class="k">${i + 1}</span>${a}</button>`).join('');
+}
+function askAux() {
+  const box = document.getElementById('tr-answers');
+  box.className = 'answers row2';
+  document.getElementById('tr-word').innerHTML = `${cur.de} — Perfekt?`;
+  box.innerHTML = ['hat', 'ist'].map((a, i) =>
+    `<button class="ans gender" data-ok="${a === cur.aux}" onclick="answerStep(this)">` +
+    `<span class="k">${i + 1}</span>${a} ${cur.perfekt || ''}</button>`).join('');
+}
+function answerStep(btn) {
+  const ok = btn.dataset.ok === 'true';
+  document.querySelectorAll('#tr-answers .ans').forEach(b => {
+    if (b.dataset.ok === 'true') b.classList.add('correct');
+    else if (b === btn) b.classList.add('wrong');
+    b.onclick = null;
+  });
+  if (!ok) wrongThisCard = true;
+  finishCard();
+}
+
+function finishCard() {
+  step = 2;
+  const k = keyOf(cur), s = srs[k], t = today();
+  if (!wrongThisCard) {
+    s.b = Math.min(INTERVALS.length - 1, (s.b || 0) + 1);
+    s.r = (s.r || 0) + 1; sCorrect++;
+  } else {
+    s.b = Math.max(0, (s.b || 0) - 1);
+    s.w = (s.w || 0) + 1;
+  }
+  s.due = addDays(t, INTERVALS[s.b]);
+  bumpDay('a'); if (!wrongThisCard) bumpDay('c');
+  persist();
+
+  const fb = document.getElementById('tr-feedback');
+  let html = `<div class="sol">${wordHtml(cur)} — ${cur.it}</div>`;
+  if (cur.type === 'verb') html += `<div class="ex">${metaText(cur)}</div>`;
+  if (cur.example) html += `<div class="ex">${cur.example}</div>`;
+  if (cur.trap === 'genere') html += `<div class="warn">Genere ingannevole rispetto all’italiano.</div>`;
+  if (cur.trap === 'falso-amico') html += `<div class="warn">Falso amico: non farti guidare dall’italiano.</div>`;
+  if (cur.note) html += `<div class="ex">${cur.note}</div>`;
+  fb.innerHTML = html;
+  fb.className = 'feedback show ' + (wrongThisCard ? 'bad' : 'good');
+  document.getElementById('tr-next').className = 'btn next show';
+}
+
+function nextQuestion() {
+  sIdx++;
+  if (sIdx >= session.length) return showResult();
+  renderQuestion();
+}
+
+function showResult() {
+  mode = 'result';
+  const t = days[today()] || { a: 0 };
+  const pct = Math.round(sCorrect / session.length * 100);
+  document.getElementById('res-line').textContent =
+    `${sCorrect} su ${session.length} corrette.`;
+  const goalDone = t.a >= GOAL;
+  document.getElementById('res-detail').innerHTML =
+    `<p class="sub">Oggi: ${t.a} risposte · obiettivo ${GOAL}.` +
+    (goalDone ? ' Obiettivo raggiunto — per oggi può bastare.' : '') + `</p>`;
+  document.getElementById('res-again').style.display = goalDone ? 'none' : 'block';
+  document.getElementById('res-title').textContent =
+    pct >= 80 ? 'Buon giro' : 'Sessione completata';
+  show('s-result');
+}
+
+/* ═════════ Progressi ═════════ */
+function showProgress() {
+  mode = 'progress';
+  const tot = WORDS.length, tri = tot - untriaged().length;
+  const kn = WORDS.filter(e => (srs[keyOf(e)] || {}).st === 'known').length;
+  document.getElementById('pg-summary').innerHTML =
+    `<h2>Dove sei</h2>
+     <p class="sub">${tri.toLocaleString('it')} parole vagliate su ${tot.toLocaleString('it')} ·
+     ${kn.toLocaleString('it')} già note · ${learning().length} in apprendimento ·
+     ${mastered().length} consolidate</p>`;
+  const sMap = { spenta: 'Sincronizzazione: non attiva (i dati restano su questo dispositivo)',
+                 sync: 'Sincronizzazione: in corso…', ok: 'Sincronizzazione: attiva',
+                 offline: 'Sincronizzazione: offline — riproverà da sola' };
+  document.getElementById('sync-status').textContent = sMap[window.WSSync?.status] || '';
+  const themes = {};
+  WORDS.forEach(e => {
+    const th = e.theme || 'altro';
+    themes[th] = themes[th] || { tot: 0, done: 0 };
+    themes[th].tot++;
+    const s = srs[keyOf(e)];
+    if (s && (s.st === 'known' || s.b >= MASTERED_BOX)) themes[th].done++;
+  });
+  document.getElementById('pg-themes').innerHTML = Object.entries(themes)
+    .sort((a, b) => b[1].tot - a[1].tot)
+    .map(([th, v]) => `<div class="theme-row"><span class="lbl">${th.replace(/_/g, ' ')}</span>
+      <div class="barw"><div class="bar" style="width:${v.tot ? v.done / v.tot * 100 : 0}%"></div></div>
+      <span class="num">${v.done}/${v.tot}</span></div>`).join('');
+  show('s-progress');
+}
+
+/* ═════════ Backup ═════════ */
+function exportBackup() {
+  const blob = new Blob([JSON.stringify({ v: 1, exportedAt: new Date().toISOString(),
+    ws_srs: srs, ws_days: days }, null, 1)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `wortschatz-backup-${today()}.json`;
+  a.click(); URL.revokeObjectURL(a.href);
+}
+function importBackup(inp) {
+  const f = inp.files[0]; if (!f) return;
+  f.text().then(txt => {
+    const p = JSON.parse(txt);
+    if (!p.ws_srs) throw new Error('file non valido');
+    srs = p.ws_srs; days = p.ws_days || {};
+    persist(); goHome();
+  }).catch(() => alert('Questo file non sembra un backup di Wortschatz.'));
+}
+
+/* ═════════ Tastiera ═════════ */
+document.addEventListener('keydown', ev => {
+  if (mode === 'sweep') {
+    if (ev.key === '1') sweepAnswer('known');
+    if (ev.key === '2') sweepAnswer('unsure');
+    if (ev.key === '3') sweepAnswer('learn');
+  } else if (mode === 'train') {
+    if (ev.key === 'Enter' && step === 2) return nextQuestion();
+    const n = parseInt(ev.key);
+    if (n >= 1 && n <= 4) {
+      const btns = document.querySelectorAll('#tr-answers .ans');
+      if (btns[n - 1] && btns[n - 1].onclick) btns[n - 1].click();
+    }
+  }
+});
+
+/* ═════════ Sincronizzazione ═════════ */
+window.addEventListener('wssync-pulled', () => {
+  srs = load('ws_srs', {}); days = load('ws_days', {});
+  if (mode === 'home') goHome();
+});
+window.WSSync?.init();
+
+goHome();
+</script>
+</body>
+</html>
