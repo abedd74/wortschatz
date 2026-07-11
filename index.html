@@ -104,6 +104,29 @@
   .recognition { margin-top:.6rem; padding:.6rem .8rem; border-radius:8px; font-size:.88rem;
     background:var(--accent-soft); border:1px solid var(--line); }
 
+  /* registro parole */
+  .wsearch { width:100%; padding:.55rem .8rem; font-family:inherit; font-size:.92rem;
+    color:var(--ink); background:var(--card); border:1px solid var(--line); border-radius:8px; }
+  .wsearch:focus { outline:none; border-color:var(--accent); }
+  .fchips { display:flex; flex-wrap:wrap; gap:.35rem; margin:.6rem 0; }
+  .fchip { padding:.28rem .7rem; font-size:.78rem; font-weight:600; color:var(--ink-soft);
+    background:transparent; border:1px solid var(--line); border-radius:999px; }
+  .fchip.active { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .wrow { border-bottom:1px solid var(--line); padding:.55rem .2rem; cursor:pointer; }
+  .wrow:last-child { border-bottom:none; }
+  .wrow-top { display:flex; justify-content:space-between; align-items:baseline; gap:.6rem; }
+  .wrow .wde { font-weight:600; }
+  .wrow .wde .art-der { color:var(--c-der); } .wrow .wde .art-die { color:var(--c-die); }
+  .wrow .wde .art-das { color:var(--c-das); }
+  .wrow .wst { font-size:.75rem; color:var(--ink-soft); white-space:nowrap; }
+  .wrow .wit { font-size:.85rem; color:var(--ink-soft); }
+  .wdetail { margin-top:.5rem; font-size:.85rem; color:var(--ink-soft); }
+  .wdetail .ex { font-style:italic; margin:.3rem 0; }
+  .wactions { display:flex; gap:.5rem; margin-top:.5rem; }
+  .wactions button { flex:1; padding:.45rem; font-size:.8rem; font-weight:600;
+    color:var(--accent); background:transparent; border:1px solid var(--line); border-radius:8px; }
+  .wcount { font-size:.8rem; color:var(--ink-soft); margin:.4rem 0; }
+
   /* quiz */
   .q-count { font-size:.8rem; color:var(--ink-soft); font-weight:500; }
   .q-word { font-family:'Fraunces',Georgia,serif; font-size:1.9rem; font-weight:600;
@@ -237,6 +260,7 @@
   </div>
   <h1>Progressi</h1>
   <div class="card" id="pg-summary"></div>
+  <button class="btn secondary" onclick="showWords()">Tutte le parole</button>
   <div class="card">
     <h2>Copertura per tema</h2>
     <div id="pg-themes"></div>
@@ -259,6 +283,23 @@
       <input type="file" id="imp" accept=".json" style="display:none;" onchange="importBackup(this)">
     </div>
   </div>
+</div>
+
+<!-- ══════════ TUTTE LE PAROLE ══════════ -->
+<div class="screen" id="s-words">
+  <div class="topbar">
+    <button class="quit" onclick="showProgress()">← Progressi</button>
+  </div>
+  <h1>Tutte le parole</h1>
+  <input class="wsearch" id="w-search" type="search" placeholder="Cerca in tedesco o italiano…"
+         autocomplete="off" oninput="wSearch = this.value; wLimit = 100; renderWords()">
+  <div class="fchips" id="w-chips"></div>
+  <div class="sweep-theme">
+    <select id="w-theme" onchange="wTheme = this.value; wLimit = 100; renderWords()"></select>
+  </div>
+  <div class="wcount" id="w-count"></div>
+  <div class="card" id="w-list"></div>
+  <button class="btn secondary" id="w-more" onclick="wLimit += 100; renderWords()">Mostra altre</button>
 </div>
 
 <footer>Wortschatz · lista ufficiale Goethe-Zertifikat B1</footer>
@@ -688,6 +729,94 @@ function showProgress() {
            `<span class="chip">${e.de} · ${srs[keyOf(e)].w}</span>`).join('')}</div>`
       : `<p class="sub">Nessuna, per ora.</p>`);
   show('s-progress');
+}
+
+/* ═════════ Tutte le parole (registro) ═════════ */
+let wFilter = 'tutte', wTheme = 'tutti', wSearch = '', wLimit = 100, wOpen = null;
+const W_FILTERS = [
+  ['tutte', 'Tutte'], ['vagliare', 'Da vagliare'], ['note', 'Già note'],
+  ['apprendimento', 'In apprendimento'], ['consolidate', 'Consolidate'],
+  ['ostinate', 'Ostinate'], ['trappole', 'Trappole'],
+];
+
+function fmtDue(ds) {
+  if (!ds || ds <= today()) return 'in coda ora';
+  if (ds === addDays(today(), 1)) return 'torna domani';
+  return 'torna il ' + ds.slice(8) + '/' + ds.slice(5, 7);
+}
+function statusText(e) {
+  const s = srs[keyOf(e)];
+  if (!s) return 'da vagliare';
+  if (s.st === 'known') return 'già nota';
+  const lvl = (s.b || 0) >= MASTERED_BOX ? 'consolidata' : `scatola ${s.b || 0}`;
+  return `${lvl} · ${fmtDue(s.due)}` + (isLeech(s) ? ' · ostinata' : '');
+}
+function wMatches(e) {
+  const s = srs[keyOf(e)];
+  switch (wFilter) {
+    case 'vagliare':      if (s) return false; break;
+    case 'note':          if (!s || s.st !== 'known') return false; break;
+    case 'apprendimento': if (!s || s.st !== 'learn') return false; break;
+    case 'consolidate':   if (!s || s.st !== 'learn' || (s.b || 0) < MASTERED_BOX) return false; break;
+    case 'ostinate':      if (!s || s.st !== 'learn' || !isLeech(s)) return false; break;
+    case 'trappole':      if (!e.trap) return false; break;
+  }
+  if (wTheme !== 'tutti' && e.theme !== wTheme) return false;
+  if (wSearch) {
+    const q = wSearch.toLowerCase();
+    if (!e.de.toLowerCase().includes(q) && !e.it.toLowerCase().includes(q)) return false;
+  }
+  return true;
+}
+function showWords() {
+  mode = 'words';
+  wOpen = null; wLimit = 100;
+  document.getElementById('w-search').value = wSearch;
+  const themeSet = [...new Set(WORDS.map(e => e.theme))].sort();
+  document.getElementById('w-theme').innerHTML =
+    `<option value="tutti">Tutti i temi</option>` + themeSet.map(th =>
+      `<option value="${th}" ${th === wTheme ? 'selected' : ''}>${themeLabel(th)}</option>`).join('');
+  renderWords();
+  show('s-words');
+}
+function renderWords() {
+  document.getElementById('w-chips').innerHTML = W_FILTERS.map(([id, lbl]) =>
+    `<button class="fchip ${id === wFilter ? 'active' : ''}"
+       onclick="wFilter='${id}'; wLimit=100; renderWords()">${lbl}</button>`).join('');
+  const all = WORDS.filter(wMatches).sort((a, b) => a.de.localeCompare(b.de, 'de'));
+  document.getElementById('w-count').textContent =
+    `${all.length.toLocaleString('it')} parole` + (all.length > wLimit ? ` · mostrate le prime ${wLimit}` : '');
+  document.getElementById('w-list').innerHTML = all.slice(0, wLimit).map(e => {
+    const k = keyOf(e), open = wOpen === k;
+    let detail = '';
+    if (open) {
+      const s = srs[k];
+      detail = `<div class="wdetail">`;
+      if (e.type === 'verb') detail += `<div>${metaText(e)}</div>`;
+      if (e.example) detail += `<div class="ex">${e.example}</div>`;
+      if (e.note) detail += `<div>${e.note}</div>`;
+      if (e.trap === 'genere') detail += `<div>Genere ingannevole rispetto all’italiano.</div>`;
+      if (e.trap === 'falso-amico') detail += `<div>Falso amico.</div>`;
+      const acts = [];
+      if (!s || s.st === 'known')
+        acts.push(`<button onclick="wSet('${k.replace(/'/g, "\\'")}', 'learn'); event.stopPropagation()">Sposta in apprendimento</button>`);
+      if (!s || s.st === 'learn')
+        acts.push(`<button onclick="wSet('${k.replace(/'/g, "\\'")}', 'known'); event.stopPropagation()">Segna come già nota</button>`);
+      if (acts.length) detail += `<div class="wactions">${acts.join('')}</div>`;
+      detail += `</div>`;
+    }
+    return `<div class="wrow" onclick="wOpen = wOpen === '${k.replace(/'/g, "\\'")}' ? null : '${k.replace(/'/g, "\\'")}'; renderWords()">
+      <div class="wrow-top"><span class="wde">${wordHtml(e)}</span>
+        <span class="wst">${statusText(e)}</span></div>
+      <div class="wit">${e.it}</div>${detail}</div>`;
+  }).join('') || '<p class="sub">Nessuna parola corrisponde ai filtri.</p>';
+  document.getElementById('w-more').style.display = all.length > wLimit ? 'block' : 'none';
+}
+function wSet(k, st) {
+  if (st === 'known') srs[k] = { st: 'known' };
+  else srs[k] = { st: 'learn', b: 0, due: today(), r: 0, w: 0 };
+  persist();
+  renderWords();
 }
 
 /* ═════════ Backup ═════════ */
