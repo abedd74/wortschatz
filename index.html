@@ -80,6 +80,30 @@
     background:transparent; border:1px solid var(--line); border-radius:999px; }
   .time-btn.active { background:var(--accent); border-color:var(--accent); color:#fff; }
 
+  /* ritmo settimanale: coerenza, non perfezione */
+  .week-strip { display:flex; justify-content:space-between; gap:.4rem; margin-top:.8rem; }
+  .wday { flex:1; text-align:center; }
+  .wday .dot { width:20px; height:20px; border-radius:50%; margin:0 auto 3px;
+    background:var(--line); border:2px solid transparent; }
+  .wday.today .dot { border-color:var(--accent); }
+  .wday.part .dot { background:#c9d2c4; }
+  .wday.met .dot { background:var(--good); }
+  .wday .lbl { font-size:.62rem; font-weight:600; color:var(--ink-soft); }
+
+  .sweep-theme { margin-bottom:.6rem; }
+  .sweep-theme select { width:100%; padding:.5rem .8rem; font-family:inherit; font-size:.88rem;
+    color:var(--ink); background:var(--card); border:1px solid var(--line); border-radius:8px; }
+
+  .wk-chart { display:flex; align-items:flex-end; gap:6px; height:80px; margin-top:.6rem; }
+  .wk-bar { flex:1; background:var(--accent); border-radius:4px 4px 0 0; min-height:2px; opacity:.85; }
+  .wk-lbls { display:flex; justify-content:space-between; font-size:.62rem; color:var(--ink-soft); margin-top:.3rem; }
+  .chips { display:flex; flex-wrap:wrap; gap:.4rem; margin-top:.5rem; }
+  .chip { border:1px solid var(--line); border-radius:999px; padding:.15rem .6rem;
+    font-size:.78rem; font-weight:500; color:var(--ink-soft); background:var(--card); }
+  .chip.trap { border-color:var(--good); color:var(--good); }
+  .recognition { margin-top:.6rem; padding:.6rem .8rem; border-radius:8px; font-size:.88rem;
+    background:var(--accent-soft); border:1px solid var(--line); }
+
   /* quiz */
   .q-count { font-size:.8rem; color:var(--ink-soft); font-weight:500; }
   .q-word { font-family:'Fraunces',Georgia,serif; font-size:1.9rem; font-weight:600;
@@ -142,7 +166,7 @@
   <p class="sub" id="home-line"></p>
 
   <div class="stat-row">
-    <div class="stat"><b id="st-streak">0</b><span>giorni di fila</span></div>
+    <div class="stat"><b id="st-week">0</b><span>giorni attivi su 7</span></div>
     <div class="stat"><b id="st-learn">0</b><span>in apprendimento</span></div>
     <div class="stat"><b id="st-mastered">0</b><span>consolidate</span></div>
   </div>
@@ -150,6 +174,7 @@
   <div class="card">
     <div class="goal-lbl"><span>Obiettivo di oggi</span><span id="goal-num">0 / 40</span></div>
     <div class="goalwrap"><div class="goalbar" id="goalbar"></div></div>
+    <div class="week-strip" id="week-strip"></div>
     <div class="time-row" id="time-row"></div>
   </div>
 
@@ -163,6 +188,9 @@
   <div class="topbar">
     <button class="quit" onclick="goHome()">← Fine per ora</button>
     <span class="q-count" id="sweep-count"></span>
+  </div>
+  <div class="sweep-theme">
+    <select id="sweep-theme-sel" onchange="sweepThemeChanged(this.value)"></select>
   </div>
   <div class="card">
     <div class="q-word" id="sw-word"></div>
@@ -214,6 +242,14 @@
     <div id="pg-themes"></div>
   </div>
   <div class="card">
+    <h2>Ritmo settimanale</h2>
+    <p class="sub" style="font-size:.8rem;">Risposte per settimana. Le carte di smistamento contano un quarto.</p>
+    <div class="wk-chart" id="wk-chart"></div>
+    <div class="wk-lbls" id="wk-lbls"></div>
+  </div>
+  <div class="card" id="pg-traps"></div>
+  <div class="card" id="pg-leeches"></div>
+  <div class="card">
     <h2>Sincronizzazione e backup</h2>
     <div class="sync-status" id="sync-status"></div>
     <p class="sub">I dati vivono in questo browser. Un backup ogni tanto non fa male.</p>
@@ -235,8 +271,18 @@
 const TIME_CHOICES = [5, 10, 15, 20, 30];   // minuti al giorno, scelti da Daniela
 const REPS_PER_MIN = 2.7;                   // ritmo osservato: ~22 secondi a risposta
 const SESSION_LEN = 10;
-const INTERVALS = [0, 1, 2, 4, 8, 16]; // giorni per scatola (Leitner)
+const INTERVALS = [0, 1, 2, 4, 8, 16, 32, 64, 128]; // giorni per scatola (Leitner esteso)
 const MASTERED_BOX = 4;
+const LEECH_WRONG = 4;   // da questo numero di errori una parola è "ostinata"
+
+/* ±15% di variazione sugli intervalli lunghi, così le parole imparate insieme
+   non ricadono tutte nello stesso giorno */
+function fuzzed(days) {
+  if (days < 4) return days;
+  const f = Math.round(days * 0.15);
+  return days + Math.floor(Math.random() * (2 * f + 1)) - f;
+}
+const isLeech = s => s && (s.w || 0) >= LEECH_WRONG;
 
 /* Parole regionali A/CH escluse (la famiglia è in Renania-Palatinato) */
 const WORDS = WS_DATA.filter(e => !e.region || e.region.includes('D'));
@@ -264,14 +310,55 @@ const persist = () => { save('ws_srs', srs); save('ws_days', days); };
 
 const today = () => new Date().toISOString().slice(0, 10);
 function addDays(ds, n) { const d = new Date(ds + 'T12:00:00'); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); }
-function bumpDay(field) { const t = today(); days[t] = days[t] || { a: 0, c: 0, sw: 0 }; days[t][field]++; }
+function bumpDay(field) {
+  const t = today();
+  days[t] = days[t] || { a: 0, c: 0, sw: 0 };
+  days[t][field]++;
+  days[t].g = goalAnswers();   // l'obiettivo valido quel giorno, per il ritmo settimanale
+}
 
-function streak() {
-  let n = 0, d = today();
-  const active = ds => days[ds] && (days[ds].a > 0 || days[ds].sw > 0);
-  if (!active(d)) d = addDays(d, -1);
-  while (active(d)) { n++; d = addDays(d, -1); }
-  return n;
+function effOf(t) { return t ? (t.a || 0) + Math.floor((t.sw || 0) / 4) : 0; }
+
+/* ritmo: coerenza settimanale, non giorni consecutivi */
+function renderWeekStrip() {
+  const names = ['D', 'L', 'M', 'M', 'G', 'V', 'S'];
+  let html = '', active = 0;
+  for (let i = 6; i >= 0; i--) {
+    const ds = addDays(today(), -i);
+    const t = days[ds];
+    const eff = effOf(t);
+    const met = t && eff >= (t.g || goalAnswers());
+    const part = t && eff > 0 && !met;
+    if (eff > 0) active++;
+    const wd = names[new Date(ds + 'T12:00:00').getDay()];
+    html += `<div class="wday ${met ? 'met' : ''} ${part ? 'part' : ''} ${i === 0 ? 'today' : ''}">
+      <div class="dot"></div><div class="lbl">${wd}</div></div>`;
+  }
+  document.getElementById('week-strip').innerHTML = html;
+  return active;
+}
+
+/* traguardi silenziosi: una riga, una volta sola */
+const MS_TRIAGE = [500, 1000, 1500, 2000, 2500, 3000];
+const MS_MASTER = [50, 100, 250, 500, 750, 1000];
+function milestoneLine() {
+  prefs.ms = prefs.ms || [];
+  const tri = WORDS.length - untriaged().length, ma = mastered().length;
+  for (const m of MS_TRIAGE) {
+    const id = 'tri' + m;
+    if (tri >= m && !prefs.ms.includes(id)) {
+      prefs.ms.push(id); save('ws_prefs', prefs);
+      return `Traguardo: ${m.toLocaleString('it')} parole vagliate.`;
+    }
+  }
+  for (const m of MS_MASTER) {
+    const id = 'ma' + m;
+    if (ma >= m && !prefs.ms.includes(id)) {
+      prefs.ms.push(id); save('ws_prefs', prefs);
+      return `Traguardo: ${m.toLocaleString('it')} parole consolidate.`;
+    }
+  }
+  return null;
 }
 
 const untriaged = () => WORDS.filter(e => !srs[keyOf(e)]);
@@ -290,7 +377,7 @@ let mode = 'home';
 
 function goHome() {
   mode = 'home';
-  document.getElementById('st-streak').textContent = streak();
+  document.getElementById('st-week').textContent = renderWeekStrip();
   document.getElementById('st-learn').textContent = learning().length;
   document.getElementById('st-mastered').textContent = mastered().length;
   const G = goalAnswers(), eff = doneToday();
@@ -308,11 +395,11 @@ function goHome() {
   bS.textContent = fresh ? `Smistamento — ${fresh.toLocaleString('it')} parole da vagliare` : 'Smistamento completato';
   bS.disabled = fresh === 0;
 
-  const line = eff >= G
+  const line = milestoneLine() || (eff >= G
     ? 'Obiettivo raggiunto. Il resto lo fa il sonno.'
     : learning().length === 0
       ? 'Si comincia dallo smistamento: decidi quali parole conosci già e quali vuoi imparare.'
-      : 'Un po’ ogni giorno, anche in più momenti. Il conteggio si somma da solo.';
+      : 'Un po’ ogni giorno, anche in più momenti. Il conteggio si somma da solo.');
   document.getElementById('home-line').textContent = line;
   show('s-home');
 }
@@ -332,13 +419,35 @@ function metaText(e) {
 const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 
 /* ═════════ Smistamento ═════════ */
-let sweepQueue = [], sweepDone = 0;
+let sweepQueue = [], sweepDone = 0, sweepTheme = 'tutti';
 
+const themeLabel = th => th.replace(/_/g, ' ').replace(/^./, c => c.toUpperCase());
+
+function buildSweepQueue() {
+  const pool = untriaged().filter(e => sweepTheme === 'tutti' || e.theme === sweepTheme);
+  sweepQueue = shuffle(pool.slice());
+}
+function renderThemeSelect() {
+  const counts = {};
+  untriaged().forEach(e => { counts[e.theme] = (counts[e.theme] || 0) + 1; });
+  const opts = Object.entries(counts).sort((a, b) => b[1] - a[1])
+    .map(([th, n]) => `<option value="${th}" ${th === sweepTheme ? 'selected' : ''}>${themeLabel(th)} · ${n}</option>`);
+  document.getElementById('sweep-theme-sel').innerHTML =
+    `<option value="tutti" ${sweepTheme === 'tutti' ? 'selected' : ''}>Tutti i temi · ${untriaged().length.toLocaleString('it')}</option>` + opts.join('');
+}
+function sweepThemeChanged(v) {
+  sweepTheme = v;
+  buildSweepQueue();
+  if (!sweepQueue.length) return goHome();
+  renderSweep();
+}
 function startSweep() {
   mode = 'sweep';
-  sweepQueue = shuffle(untriaged().slice());
+  if (sweepTheme !== 'tutti' && !untriaged().some(e => e.theme === sweepTheme)) sweepTheme = 'tutti';
+  buildSweepQueue();
   sweepDone = 0;
   if (!sweepQueue.length) return goHome();
+  renderThemeSelect();
   renderSweep();
   show('s-sweep');
 }
@@ -358,11 +467,13 @@ function sweepAnswer(v) {
   else                     srs[k] = { st: 'learn', b: 0, due: t, r: 0, w: 0 };
   sweepDone++; bumpDay('sw'); persist();
   if (!sweepQueue.length) return goHome();
+  renderThemeSelect();
   renderSweep();
 }
 
 /* ═════════ Allenamento ═════════ */
 let session = [], sIdx = 0, sCorrect = 0, cur = null, step = 0, wrongThisCard = false;
+let sLog = null;   // eventi della sessione, per il riconoscimento finale
 
 function startTraining() {
   mode = 'train';
@@ -371,6 +482,7 @@ function startTraining() {
   if (!pool.length) return goHome();
   session = pool.slice(0, SESSION_LEN);
   sIdx = 0; sCorrect = 0;
+  sLog = { promoted: [], trapsSeen: 0, trapsOk: 0, leechOk: [] };
   renderQuestion();
   show('s-train');
 }
@@ -388,7 +500,11 @@ function renderQuestion() {
   document.getElementById('tr-count').textContent = `${sIdx + 1} di ${session.length}`;
   document.getElementById('tr-word').innerHTML =
     cur.type === 'noun' ? cur.de : wordHtml(cur);   // il genere è parte della domanda, non mostrarlo
-  document.getElementById('tr-meta').textContent = cur.type === 'verb' ? '' : '';
+  // parola ostinata: la frase d'esempio ufficiale aiuta come contesto
+  const s0 = srs[keyOf(cur)];
+  const firstSentence = ex => { const p = ex.split(/\.\s/)[0]; return p.endsWith('.') ? p : p + '.'; };
+  document.getElementById('tr-meta').textContent =
+    (isLeech(s0) && cur.example) ? '„' + firstSentence(cur.example) + '“' : '';
   document.getElementById('tr-feedback').className = 'feedback';
   document.getElementById('tr-next').className = 'btn next';
 
@@ -444,14 +560,18 @@ function answerStep(btn) {
 function finishCard() {
   step = 2;
   const k = keyOf(cur), s = srs[k], t = today();
+  const wasLeech = isLeech(s), oldB = s.b || 0;
   if (!wrongThisCard) {
-    s.b = Math.min(INTERVALS.length - 1, (s.b || 0) + 1);
+    s.b = Math.min(INTERVALS.length - 1, oldB + 1);
     s.r = (s.r || 0) + 1; sCorrect++;
+    if (s.b >= 5 && s.b > oldB) sLog.promoted.push({ de: cur.de, days: INTERVALS[s.b] });
+    if (wasLeech) sLog.leechOk.push(cur.de);
   } else {
-    s.b = Math.max(0, (s.b || 0) - 1);
+    s.b = Math.max(0, oldB - 1);
     s.w = (s.w || 0) + 1;
   }
-  s.due = addDays(t, INTERVALS[s.b]);
+  if (cur.trap) { sLog.trapsSeen++; if (!wrongThisCard) sLog.trapsOk++; }
+  s.due = addDays(t, fuzzed(INTERVALS[s.b]));
   bumpDay('a'); if (!wrongThisCard) bumpDay('c');
   persist();
 
@@ -480,10 +600,21 @@ function showResult() {
     `${sCorrect} su ${session.length} corrette.`;
   const G = goalAnswers(), eff = doneToday();
   const goalDone = eff >= G;
+  /* un riconoscimento specifico, solo quando i dati lo sostengono */
+  let note = null;
+  if (sLog.leechOk.length) {
+    note = `«${sLog.leechOk[0]}», finalmente — era una delle parole ostinate.`;
+  } else if (sLog.promoted.length) {
+    const p = sLog.promoted[0];
+    note = `«${p.de}» è consolidata: tornerà tra circa ${p.days} giorni.`;
+  } else if (sLog.trapsSeen >= 2 && sLog.trapsOk === sLog.trapsSeen) {
+    note = 'Nessun errore con le parole-trappola, in questo giro.';
+  }
   document.getElementById('res-detail').innerHTML =
     `<p class="sub">Oggi: ${Math.min(eff, G)} su ${G} (obiettivo di ${prefs.minutes} minuti).` +
     (goalDone ? ' Obiettivo raggiunto — per oggi può bastare.'
-              : ' Puoi continuare ora o riprendere più tardi: il conteggio resta.') + `</p>`;
+              : ' Puoi continuare ora o riprendere più tardi: il conteggio resta.') + `</p>` +
+    (note ? `<div class="recognition">${note}</div>` : '');
   document.getElementById('res-again').style.display = goalDone ? 'none' : 'block';
   document.getElementById('res-title').textContent =
     pct >= 80 ? 'Buon giro' : 'Sessione completata';
@@ -517,6 +648,45 @@ function showProgress() {
     .map(([th, v]) => `<div class="theme-row"><span class="lbl">${th.replace(/_/g, ' ')}</span>
       <div class="barw"><div class="bar" style="width:${v.tot ? v.done / v.tot * 100 : 0}%"></div></div>
       <span class="num">${v.done}/${v.tot}</span></div>`).join('');
+
+  /* ritmo settimanale: ultime 8 settimane (lun-dom) */
+  const weekOf = ds => { const d = new Date(ds + 'T12:00:00');
+    d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.toISOString().slice(0, 10); };
+  const weeks = [];
+  let w = weekOf(today());
+  for (let i = 0; i < 8; i++) { weeks.unshift(w); w = addDays(w, -7); }
+  const totals = weeks.map(ws => {
+    let sum = 0;
+    for (let i = 0; i < 7; i++) sum += effOf(days[addDays(ws, i)]);
+    return sum;
+  });
+  const mx = Math.max(1, ...totals);
+  document.getElementById('wk-chart').innerHTML =
+    totals.map(v => `<div class="wk-bar" style="height:${Math.max(2, v / mx * 100)}%"></div>`).join('');
+  document.getElementById('wk-lbls').innerHTML =
+    weeks.map(ws => `<span>${ws.slice(8)}/${ws.slice(5, 7)}</span>`).join('');
+
+  /* trappole battute: parole con trappola arrivate almeno alla scatola 3 */
+  const beaten = WORDS.filter(e => {
+    const s = srs[keyOf(e)];
+    return e.trap && s && s.st === 'learn' && (s.b || 0) >= 3;
+  });
+  const trapTot = WORDS.filter(e => e.trap && (srs[keyOf(e)] || {}).st === 'learn').length;
+  document.getElementById('pg-traps').innerHTML =
+    `<h2>Trappole battute</h2>
+     <p class="sub">${beaten.length} su ${trapTot} tra falsi amici e generi ingannevoli in apprendimento.</p>` +
+    (beaten.length ? `<div class="chips">${beaten.slice(-14).map(e =>
+      `<span class="chip trap">${e.de}</span>`).join('')}</div>` : '');
+
+  /* parole ostinate */
+  const leeches = learning().filter(e => isLeech(srs[keyOf(e)]))
+    .sort((a, b) => srs[keyOf(b)].w - srs[keyOf(a)].w);
+  document.getElementById('pg-leeches').innerHTML =
+    `<h2>Parole ostinate</h2>` + (leeches.length
+      ? `<p class="sub">Sbagliate ${LEECH_WRONG}+ volte — d'ora in poi arrivano con la frase d'esempio come aiuto.</p>
+         <div class="chips">${leeches.slice(0, 12).map(e =>
+           `<span class="chip">${e.de} · ${srs[keyOf(e)].w}</span>`).join('')}</div>`
+      : `<p class="sub">Nessuna, per ora.</p>`);
   show('s-progress');
 }
 
